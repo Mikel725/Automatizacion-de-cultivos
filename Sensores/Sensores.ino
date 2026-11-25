@@ -1,28 +1,10 @@
-#include <Ethernet2.h>
-#include <PubSubClient.h>
-#include <ArduinoJson.h>
-#include <DHT.h>
-#include <DHT_U.h>
-
-byte mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 };
-
-// Dirección ip y gateway
-IPAddress ip();
-IPAddress gw();
-
-// DNS information
-IPAddress dns(8, 8, 8, 8);
-
-// Broker information
-const char broker_name[] = "tom.uib.es";
-const unsigned int broker_port = 1883;
-const char client_id[] = "secondsAway"; 
+#include "Constantes.h"
 
 void callback(char* topic, byte* payload, unsigned int length);
 void reconnect();
 
-const uint8_t SENSOR_TH = 40;
-uint8_t temperatue, humidity;
+const uint8_t SENSOR_TH = A5;
+uint8_t temperature, humidity;
 
 DHT dht(SENSOR_TH, DHT11);
 
@@ -33,8 +15,8 @@ void setup() {
   
   Serial.begin(115200);
 
-  Ethernet.begin(mac, ip, dns, gw);
-  mqttClient.setServer(broker_name, broker_port);
+  Ethernet.begin(MAC_ADDR, IP_ADDR, DNS_ADDR, GATEWAY);
+  mqttClient.setServer(BROKER_NAME, BROKER_PORT);
   mqttClient.setCallback(callback);
 
   dht.begin();
@@ -46,23 +28,38 @@ void loop() {
 
   connect();
 
-  mqttClient.suscribe();
-  mqttClient.suscribe();
+  mqttClient.subscribe("ddiot");
+  mqttClient.subscribe("ddiot/mhg");
 
-  temperatue = humidity = 0;
+  temperature = humidity = 0;
   while(true){
-
-    mqttClient.loop();
 
     temperature = dht.readTemperature();
     humidity = dht.readHumidity();
 
     Serial.print("Temperatura ºC: ");
-    Serial.println(temperatue);
+    Serial.println(temperature);
     Serial.print("Humedad: ");
-    Serial.println(humidity));
+    Serial.println(humidity);
 
-    delay(5000);
+    StaticJsonDocument<100> informeDHT;
+
+    informeDHT["Temperatura"] = temperature;
+    informeDHT["Humedad"] = humidity;
+
+    char buff[100];
+    serializeJson(informeDHT, buff);
+
+    mqttClient.publish(INFORME_CLIMA, buff);
+
+    Serial.println(measureJson(informeDHT));
+
+    mqttClient.loop();
+
+    
+
+    delay(3000);
+
   }
 
 }
@@ -79,7 +76,7 @@ void connect() {
     Serial.println("Attempting MQTT connection ...");
 
     // Attempt to connect
-    connection_successful = mqttClient.connect(client_id, "ddiot", "uibddiot2627");
+    connection_successful = mqttClient.connect(CLIENT_ID, "ddiot", "uibddiot2627");
     if (connection_successful) {
       Serial.println("connected");
     } else {
